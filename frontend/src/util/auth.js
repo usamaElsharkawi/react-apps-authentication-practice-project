@@ -36,3 +36,13 @@ export function checkAuthLoader() {
   }
   return null;
 }
+
+export function checkInverseAuthLoader() {
+  const token = getAuthToken();
+  
+  if (token) {
+    return redirect("/");
+  }
+  
+  return null;
+}

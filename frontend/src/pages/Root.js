@@ -1,4 +1,4 @@
-import { Outlet, useNavigation, useSubmit } from "react-router-dom";
+import { Outlet, useSubmit } from "react-router-dom";
 
 import MainNavigation from "../components/MainNavigation";
 import { getAuthToken, getTokenDuration } from "../util/auth";
