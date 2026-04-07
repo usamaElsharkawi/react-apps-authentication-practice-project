@@ -75,3 +75,18 @@ sequenceDiagram
         React->>User: Event removed from UI
     end
 ```
+
+### 4. React Router Authentication Architecture (Sprint Recap)
+During this module, we implemented a robust, product-grade authentication flow using React Router v6.4+ features:
+
+- **URL State over Local State:** We replaced `useState` with URL query parameters (`?mode=login`). This makes UI states bookmarkable, shareable, and integrated with the browser's Back button.
+- **Action & Loader Philosophy:** 
+  - **Actions (Mutations):** All data submissions (login, signup, deleting) go through route `action` functions.
+  - **Loaders (Fetching):** We set a global `tokenLoader` with `id: 'root'`. All child components use `useRouteLoaderData('root')` to instantly know the user's auth status.
+  - **Revalidation:** The hidden superpower of React Router. Whenever an `action` successfully executes (like Logging Out), React Router automatically triggers **Revalidation**, re-running the loaders to ensure the UI perfectly matches the new database/auth state.
+- **Error Handling & Status Codes (The 400s vs 500s):**
+  - **422 (Unprocessable)** and **401 (Unauthorized):** We `return` these responses in our actions so the UI can use `useActionData` to gracefully highlight invalid form inputs in red without breaking the page.
+  - **500 (Server Error):** We `throw` these responses to violently rip the user to the generic global `<ErrorPage />` because the system critically failed.
+  - **Network Errors:** Remember that if the internet dies completely, `fetch()` bypasses HTTP status codes entirely and throws a fatal JavaScript error that must be caught via `try/catch`.
+- **Security Trade-offs:** We chose `localStorage` for our Decoupled API approach (which is vulnerable to XSS attacks if we write poor React code), knowing the alternative is `HttpOnly` Cookies (which protects against XSS but requires CSRF protection and coupled environments like Next.js).
+- **Auto-Login UX:** Both the Signup and Login endpoints on the backend return the identical JWT structure, allowing us to instantly log the user in after they register without forcing them to re-type their credentials.
