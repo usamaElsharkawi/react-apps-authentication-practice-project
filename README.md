@@ -90,3 +90,173 @@ During this module, we implemented a robust, product-grade authentication flow u
   - **Network Errors:** Remember that if the internet dies completely, `fetch()` bypasses HTTP status codes entirely and throws a fatal JavaScript error that must be caught via `try/catch`.
 - **Security Trade-offs:** We chose `localStorage` for our Decoupled API approach (which is vulnerable to XSS attacks if we write poor React code), knowing the alternative is `HttpOnly` Cookies (which protects against XSS but requires CSRF protection and coupled environments like Next.js).
 - **Auto-Login UX:** Both the Signup and Login endpoints on the backend return the identical JWT structure, allowing us to instantly log the user in after they register without forcing them to re-type their credentials.
+
+## 📋 User Stories
+
+<details>
+<summary><strong>Epic 1: Authentication (Login & Signup)</strong></summary>
+
+#### US-1.1: User Signup
+> **As a** Guest, **I want to** create a new account by providing my email and password, **so that** I can access protected features.
+
+**Acceptance Criteria:**
+- The signup form is accessible at `/auth?mode=signup`.
+- The form collects `email` and `password` fields using the HTML `name` attribute.
+- On successful signup, a JWT Token is stored in `localStorage` and user is redirected to Home (`/`).
+- If input is invalid, a `422` validation error is displayed inline on the form without crashing.
+- If the server crashes, a global Error Page with `500` status is shown.
+
+#### US-1.2: User Login
+> **As a** Guest, **I want to** log in with my existing email and password, **so that** I can prove my identity and access protected actions.
+
+**Acceptance Criteria:**
+- The login form is accessible at `/auth?mode=login`.
+- On successful login, an identical JWT Token is stored in `localStorage` and user is redirected to Home (`/`).
+- If credentials are wrong, a `401` Unauthorized error is displayed inline on the form.
+- If the server crashes, a global Error Page with `500` status is shown.
+
+#### US-1.3: Toggle Between Login & Signup
+> **As a** Guest, **I want to** switch between "Login" and "Create new user" modes on the same page, **so that** I don't have to navigate to a different URL.
+
+**Acceptance Criteria:**
+- A `<Link>` toggles the URL query parameter between `?mode=login` and `?mode=signup`.
+- The form title dynamically changes based on the active mode.
+- The URL is bookmarkable and shareable (URL State, not `useState`).
+
+</details>
+
+<details>
+<summary><strong>Epic 2: Event Management (CRUD)</strong></summary>
+
+#### US-2.1: View All Events
+> **As a** Guest or Authenticated User, **I want to** see a list of all available events, **so that** I can browse what's happening.
+
+**Acceptance Criteria:**
+- The events list is accessible at `/events`.
+- Data is fetched via a `loader` function *before* the page renders (no `useEffect` pattern).
+- No authentication is required to view events.
+
+#### US-2.2: View Event Details
+> **As a** Guest or Authenticated User, **I want to** click on an event to see its full details, **so that** I can learn more about it.
+
+**Acceptance Criteria:**
+- The detail page is accessible at `/events/:eventId`.
+- Data is fetched using `defer` + `Await` + `Suspense` for parallel, non-blocking loading.
+- If NOT logged in, the "Edit" and "Delete" buttons are hidden.
+- If logged in, the "Edit" and "Delete" buttons are visible.
+
+#### US-2.3: Create a New Event (Protected)
+> **As an** Authenticated User, **I want to** create a new event by filling out a form, **so that** I can share it with others.
+
+**Acceptance Criteria:**
+- The creation form is accessible at `/events/new`.
+- A `checkAuthLoader` runs before the page renders. If NOT logged in, redirect to `/auth`.
+- JWT Token is attached to the `Authorization: Bearer <token>` header on the POST request.
+- On success, redirect to `/events`. On `422` validation error, inline errors are displayed.
+
+#### US-2.4: Edit an Existing Event (Protected)
+> **As an** Authenticated User, **I want to** edit an existing event's details, **so that** I can keep the information up to date.
+
+**Acceptance Criteria:**
+- The edit form is accessible at `/events/:eventId/edit`.
+- A `checkAuthLoader` blocks unauthenticated access.
+- The form is pre-populated with existing data using `defaultValue`.
+- The form reuses `EventForm` and sends a `PATCH` method instead of `POST`.
+
+#### US-2.5: Delete an Event (Protected)
+> **As an** Authenticated User, **I want to** delete an event after confirming my intention, **so that** I can remove outdated events.
+
+**Acceptance Criteria:**
+- Clicking "Delete" triggers a `window.confirm()` confirmation dialog.
+- If confirmed, `useSubmit()` programmatically fires the `deleteEventAction`.
+- JWT Token is attached to the `Authorization` header.
+- On success, redirect to `/events` and the deleted event disappears via Revalidation.
+
+</details>
+
+<details>
+<summary><strong>Epic 3: Navigation & Conditional UI</strong></summary>
+
+#### US-3.1: Conditional Navigation (Logged Out)
+> **As a** Guest, **I want to** see "Home", "Events", "Newsletter", and "Authentication" links, **so that** I can navigate or log in.
+
+**Acceptance Criteria:**
+- The "Authentication" link is visible.
+- The "Logout" button is hidden.
+- The "New Event" link in the Events sub-navigation is hidden.
+
+#### US-3.2: Conditional Navigation (Logged In)
+> **As an** Authenticated User, **I want to** see "Home", "Events", "Newsletter", and a "Logout" button, **so that** I know I'm logged in and can log out.
+
+**Acceptance Criteria:**
+- The "Logout" button is visible.
+- The "Authentication" link is hidden.
+- The "New Event" link in the Events sub-navigation is visible.
+
+</details>
+
+<details>
+<summary><strong>Epic 4: Session Management (Logout & Expiration)</strong></summary>
+
+#### US-4.1: Manual Logout
+> **As an** Authenticated User, **I want to** click a "Logout" button, **so that** my session is terminated and my token is cleared.
+
+**Acceptance Criteria:**
+- Clicking "Logout" submits a `<Form method="post" action="/logout">`.
+- The `logoutAction` removes the token and expiration from `localStorage`.
+- Revalidation triggers, causing `tokenLoader` to return `null`, which instantly hides all protected UI elements.
+- User is redirected to the Home page (`/`).
+
+#### US-4.2: Automatic Logout on Token Expiration
+> **As the** System, **I want to** automatically log the user out when their JWT Token expires (after 1 hour), **so that** stale sessions are terminated.
+
+**Acceptance Criteria:**
+- On login/signup, a frontend expiration timestamp is saved to `localStorage` (current time + 1 hour).
+- `Root.js` runs a `useEffect` that calculates the remaining token duration.
+- If the token is already expired (`"EXPIRED"`), it triggers logout immediately.
+- If the token is still valid, a `setTimeout` is set for the remaining duration to trigger automatic logout.
+
+#### US-4.3: Inverse Route Protection
+> **As the** System, **I want to** prevent authenticated users from accessing the Login/Signup page, **so that** users are not confused by seeing a form they no longer need.
+
+**Acceptance Criteria:**
+- A `checkInverseAuthLoader` runs before the `/auth` page renders.
+- If a valid token exists, the user is instantly redirected to Home (`/`).
+- If no token exists, the Auth page renders normally.
+
+</details>
+
+<details>
+<summary><strong>Epic 5: Newsletter</strong></summary>
+
+#### US-5.1: Newsletter Signup
+> **As a** Guest or Authenticated User, **I want to** sign up for a newsletter by entering my email in the navbar, **so that** I can receive updates without navigating away from my current page.
+
+**Acceptance Criteria:**
+- The newsletter form is embedded in `MainNavigation` using `fetcher.Form` (not a standard `<Form>`).
+- Submitting it fires the `/newsletter` action without triggering a full page navigation.
+- On success, a `window.alert()` displays "Signup successful!".
+- The submit button shows "Submitting..." while the request is in progress.
+
+</details>
+
+<details>
+<summary><strong>Epic 6: Error Handling</strong></summary>
+
+#### US-6.1: Graceful Validation Errors
+> **As the** System, **I want to** display form validation errors (422/401) inline on the form, **so that** the user can correct their input without losing their progress.
+
+**Acceptance Criteria:**
+- The action function `return`s the error response (does not `throw`).
+- The component uses `useActionData()` to read the returned error.
+- Errors are rendered as a `<ul>` list above the form fields.
+
+#### US-6.2: Global Error Page for Fatal Failures
+> **As the** System, **I want to** show a global Error Page when a 500 server error or 404 not found occurs, **so that** the user knows something critical went wrong.
+
+**Acceptance Criteria:**
+- The action/loader function `throw`s a `new Response(...)` with a `500` or `404` status.
+- React Router catches it and renders the `errorElement: <ErrorPage />`.
+- The Error Page uses `useRouteError()` to extract `error.status` and `error.data.message`.
+
+</details>
